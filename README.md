@@ -11,8 +11,9 @@ _[Version française](README.fr.md)_
 - Icons show up in the **native Grid, List and Condensed list views** (see
   [Show icons in the default views](#show-icons-in-the-default-views)), with sharing / lock badges,
   thumbnails, sorting, drag & drop and keyboard navigation unchanged.
-- **Personal**: each user customizes their own view; nothing is written to the folders or sent
-  to the server.
+- **For me or for everyone**: keep an icon to yourself (stored in your browser), or share it with
+  everyone who can access the folder (stored on the folder itself, on the server). See
+  [Personal and shared icons](#personal-and-shared-icons).
 - Light and dark themes, keyboard navigation, accessible labels, English and French UI.
 
 > **Target version: OpenCloud 8.1.0** (OpenCloud Web 8.1.0). Other versions are untested.
@@ -22,7 +23,7 @@ _[Version française](README.fr.md)_
 1. [Installation](#installation)
 2. [Show icons in the default views](#show-icons-in-the-default-views)
 3. [Usage](#usage)
-4. [Where and how preferences are stored](#where-and-how-preferences-are-stored)
+4. [Personal and shared icons](#personal-and-shared-icons)
 5. [Uninstall](#uninstall)
 6. [Known limitations](#known-limitations)
 7. [How it works](#how-it-works)
@@ -39,7 +40,7 @@ it into OpenCloud’s web apps directory. The archive contains a `folder-icons/`
 official OpenCloud extensions do:
 
 ```bash
-unzip folder-icons-0.1.0.zip -d "$OC_DATA_DIR/web/assets/apps/"
+unzip folder-icons-0.2.0.zip -d "$OC_DATA_DIR/web/assets/apps/"
 ```
 
 | Setup                                                                  | Web apps directory                                                                                          |
@@ -118,11 +119,13 @@ You can disable only some of the three views; only those are replaced.
 ## Usage
 
 1. Right-click a folder (or use its “⋯” menu) → **Customize icon**.
-2. Pick an icon (search works on names and categories) and a color, or click
+2. Under **Apply to**, choose **Only me** or **Everyone with access** (the latter requires
+   permission to edit the folder).
+3. Pick an icon (search works on names and categories) and a color, or click
    **Upload an image** to use your own PNG or ICO file (1 MB max.).
-3. Click **Save**. The icon updates immediately.
-4. **Reset** in the same dialog restores the default icon. **Cancel**, Esc or the close button
-   leave without saving.
+4. Click **Save**. The icon updates immediately.
+5. **Reset** removes the icon for the selected scope (yours, or the shared one). **Cancel**, Esc
+   or the close button leave without saving.
 
 In default mode, open the **view options** of the file list and pick **List with custom icons**.
 
@@ -136,14 +139,39 @@ and re-encoded as PNG before being stored. Only those pixels are kept, never the
 SVG, JPEG, oversized and unreadable files are rejected with a message. Colors do not apply to
 uploaded images; picking a catalog icon replaces the image.
 
-## Where and how preferences are stored
+## Personal and shared icons
 
-OpenCloud has no server-side store suitable for per-user preferences of a web extension (the
-settings service only accepts settings declared server-side, and WebDAV properties would be
-visible to everyone with access to the folder). Preferences are therefore stored in the
+|                       | **Only me**                   | **Everyone with access**                                                                |
+| --------------------- | ----------------------------- | --------------------------------------------------------------------------------------- |
+| Who sees it           | you, in this browser          | everyone who can open the folder: space members, share recipients, public link visitors |
+| Stored in             | the browser’s `localStorage`  | the folder itself, as a WebDAV property (server side)                                   |
+| Who can set it        | anyone who can see the folder | anyone allowed to upload into the folder (server-checked)                               |
+| Synced across devices | no                            | yes                                                                                     |
+
+**Priority:** your personal icon wins over the shared one, for you only. Saving a shared icon
+removes your personal icon for that folder, so you see what everyone else sees.
+
+### Shared icons
+
+- Written with a WebDAV `PROPPATCH` (`ocfoldericons:folder-icon`), the same mechanism OpenCloud
+  Web uses for the vault integrity token. The server (reva) stores it in the folder’s
+  **extended attributes**; nothing is added to the folder’s content.
+- Read from the normal folder listing: the extension asks OpenCloud Web to include this property
+  in every `PROPFIND` (`registerExtraProp`), so there is **no extra request per folder**.
+- Versioned value without XML special characters: `1;icon;<name>;<color>` or
+  `1;image;<PNG base64>`. Resetting writes an empty value, which the server stops returning.
+- The value can be written by any member with edit rights, so it is **treated as untrusted**:
+  only catalog icons, palette colors and bounded PNG data are accepted, anything else is ignored
+  and the default icon is shown.
+- Errors (no permission, locked folder, storage refusing the value) are shown in the dialog,
+  which stays open.
+
+### Personal icons
+
+OpenCloud has no server-side store for per-user preferences of a web extension (the settings
+service only accepts settings declared server-side). Personal icons are therefore stored in the
 browser’s `localStorage`, like OpenCloud Web already does for its own extension preferences.
 
-- **Personal**: other users never see your icons.
 - **Isolated** per OpenCloud instance and per user: key
   `opencloud-folder-icons:<instance URL>:<user ID>`.
 - **Per folder**: `<storageId>|<fileId>`, the space plus the stable node ID, never the name or
@@ -157,18 +185,22 @@ browser’s `localStorage`, like OpenCloud Web already does for its own extensio
 - **No sync** between browsers or devices. Clearing the site data removes the customizations.
   An uploaded image takes about 0.5 to 20 KB of the browser’s ~5 MB quota for the site.
 
-| Operation                  | Folder ID                                | Result                  |
-| -------------------------- | ---------------------------------------- | ----------------------- |
-| Rename                     | unchanged                                | icon kept               |
-| Move inside the same space | unchanged                                | icon kept               |
-| “Move” to another space    | new (OpenCloud Web copies, then deletes) | icon lost, set it again |
+### Rename and move
+
+| Operation                                                    | Personal icon  | Shared icon                                                      |
+| ------------------------------------------------------------ | -------------- | ---------------------------------------------------------------- |
+| Rename                                                       | kept (same ID) | kept (property follows the folder)                               |
+| Move inside the same space                                   | kept (same ID) | kept                                                             |
+| “Move” to another space (OpenCloud Web copies, then deletes) | lost (new ID)  | to verify: depends on whether the copy keeps extended attributes |
 
 ## Uninstall
 
 1. If the replacement mode is enabled, **first** remove the three IDs from
    `WEB_OPTION_DISABLED_EXTENSIONS` and restart OpenCloud.
 2. Delete the `folder-icons` folder from the web apps directory and restart OpenCloud.
-3. To delete the stored preferences, open OpenCloud, open the browser developer console and run:
+3. Shared icons stay on the folders as an invisible property; without the extension nothing
+   displays them. To remove one, reset it for everyone **before** uninstalling.
+4. To delete personal preferences, open OpenCloud, open the browser developer console and run:
 
 ```js
 Object.keys(localStorage)
@@ -177,6 +209,11 @@ Object.keys(localStorage)
 ```
 
 ## Known limitations
+
+- Shared icons are visible to anyone who can list the folder, including public link visitors.
+  Large uploaded images may be refused by filesystems with small extended attribute limits
+  (ext4 allows about 4 KB per file; ZFS, XFS and Btrfs allow much more): use a catalog icon or a
+  simpler image if saving for everyone fails.
 
 - Not customized anywhere: sidebar, breadcrumbs, location picker, quick search in the top bar.
   They render OpenCloud’s `ResourceIcon` directly, with no extension point (see the core change
@@ -254,6 +291,8 @@ Built like the official [web-extensions](https://github.com/opencloud-eu/web-ext
 | `src/components/FolderIconPicker.vue`                       | icon picker dialog                                          |
 | `src/components/FolderIconTable.vue`, `FolderIconTiles.vue` | list / grid views (native components + `image` slot)        |
 | `src/components/CustomFolderIcon.vue`                       | renders a custom icon (glyph or image)                      |
+| `src/shared.ts`                                             | shared icon: WebDAV property name, encoding and validation  |
+| `src/components/IconCatalog.vue`, `src/rovingFocus.ts`      | icon catalog with search, arrow-key navigation              |
 | `src/catalog.ts`                                            | catalog, palette, validation, appearance resolution         |
 | `src/image.ts`                                              | PNG/ICO import: checks, 64×64 resize, PNG re-encoding       |
 | `src/storage.ts`                                            | storage interface + versioned `localStorage` implementation |
@@ -262,18 +301,20 @@ Built like the official [web-extensions](https://github.com/opencloud-eu/web-ext
 
 ## Testing status
 
-- `check:types`, `lint`, `format:check` and `build` pass; **53 unit tests** pass. They cover
+- `check:types`, `lint`, `format:check` and `build` pass; **65 unit tests** pass. They cover
   saving, resetting, persistence after reload, isolation between accounts and instances,
   rename / move, corrupted or unknown data, full or blocked storage, files and spaces never
-  customized, badges and parent slots forwarded, keyboard navigation, search, image import and
-  the replacement mode. They use a simulated `localStorage` and stubbed OpenCloud components:
+  customized, badges and parent slots forwarded, keyboard navigation, search, image import,
+  the replacement mode, and shared icons (encoding round trip, rejection of untrusted values,
+  personal priority, `PROPPATCH` call and list update, permission errors). They use a simulated `localStorage` and stubbed OpenCloud components:
   **they are not a validation inside OpenCloud**.
 - Image processing was checked in a real browser (Chromium): a 400×100 PNG becomes a centered
   64×64 PNG with transparent padding, a real `.ico` file is decoded, broken files and SVGs are
   rejected.
 - On a real OpenCloud 8.1 instance: the context menu action, the dialog and saving were confirmed.
-  Still to confirm on a real instance: the replacement mode in all views, dark theme, screen
-  readers, `.ico` in Firefox and Safari, and the “Shared with me” case.
+  Still to confirm on a real instance: the replacement mode in all views, **shared icons** (write,
+  display for another member, image size on your filesystem, copy to another space), dark
+  theme, screen readers, `.ico` in Firefox and Safari, and the “Shared with me” case.
 
 ## License
 

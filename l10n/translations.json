@@ -1,6 +1,7 @@
 {
 "fr": {
 "Album": "Album",
+"Apply to": "Appliquer à",
 "Archive": "Archive",
 "Archived inbox": "Boîte archivée",
 "Archives": "Archives",
@@ -30,6 +31,8 @@
 "Disc": "Disque",
 "Documents": "Documents",
 "Drawer": "Tiroir",
+"Everyone who can access this folder will see this icon.": "Toutes les personnes qui ont accès à ce dossier verront cette icône.",
+"Everyone with access": "Toutes les personnes ayant accès",
 "Film": "Pellicule",
 "Folder": "Dossier",
 "Folder (open)": "Dossier (ouvert)",
@@ -67,6 +70,9 @@
 "No icon found": "Aucune icône trouvée",
 "Notes": "Partition",
 "Office": "Bureau",
+"Only me": "Moi uniquement",
+"Only you will see this icon, in this browser.": "Cette icône ne sera visible que par vous, dans ce navigateur.",
+"Only you will see this icon, in this browser. Sharing it requires permission to edit this folder.": "Cette icône ne sera visible que par vous, dans ce navigateur. La partager nécessite le droit de modifier ce dossier.",
 "Orange": "Orange",
 "PNG or ICO, 1 MB max.": "PNG ou ICO, 1 Mo max.",
 "Palette": "Palette",
@@ -98,6 +104,7 @@
 "The folder icon could not be saved": "L’icône du dossier n’a pas pu être enregistrée",
 "The image could not be read": "L’image n’a pas pu être lue",
 "The image is too large (1 MB max.)": "L’image est trop volumineuse (1 Mo max.)",
+"This folder is locked": "Ce dossier est verrouillé",
 "Travel": "Voyage",
 "Unsupported format: only PNG and ICO files are accepted": "Format non pris en charge : seuls les fichiers PNG et ICO sont acceptés",
 "Upload an image": "Importer une image",
@@ -106,6 +113,7 @@
 "Video folder": "Dossier vidéos",
 "Videos": "Vidéos",
 "Work": "Travail",
-"Yellow": "Jaune"
+"Yellow": "Jaune",
+"You are not allowed to change the icon of this folder for everyone": "Vous n’avez pas le droit de changer l’icône de ce dossier pour tout le monde"
 }
 }

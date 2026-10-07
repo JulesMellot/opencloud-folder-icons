@@ -1,7 +1,14 @@
 import { mock } from 'vitest-mock-extended'
-import { Resource } from '@opencloud-eu/web-client'
-import { Modal, useConfigStore, useMessages, useModals } from '@opencloud-eu/web-pkg'
-import { defaultPlugins, mount } from '@opencloud-eu/web-test-helpers'
+import { DavHttpError, Resource, SpaceResource } from '@opencloud-eu/web-client'
+import {
+  Modal,
+  useConfigStore,
+  useMessages,
+  useModals,
+  useResourcesStore
+} from '@opencloud-eu/web-pkg'
+import { defaultComponentMocks, defaultPlugins, mount } from '@opencloud-eu/web-test-helpers'
+import { SHARED_ICON_PROP } from '../../../src/shared'
 import { imageFileToDataUrl, ImageImportError } from '../../../src/image'
 import FolderIconPicker from '../../../src/components/FolderIconPicker.vue'
 import { useFolderIconsStore } from '../../../src/composables/useFolderIconsStore'
@@ -23,24 +30,35 @@ async function upload(wrapper: ReturnType<typeof mountPicker>, name = 'logo.png'
   await new Promise((r) => setTimeout(r))
 }
 
-const folder = mock<Resource>({
-  id: 'f1',
-  fileId: 'f1',
-  storageId: 'sid$space',
-  name: 'Projets',
-  isFolder: true,
-  type: 'folder'
-})
+const space = mock<SpaceResource>({ id: 'space1' })
+let folder: Resource
+let mocks: ReturnType<typeof defaultComponentMocks>
 
-function mountPicker({ withPreference = false } = {}) {
+function makeFolder({ canUpload = false, shared = '' } = {}) {
+  return mock<Resource>({
+    id: 'f1',
+    fileId: 'f1',
+    storageId: 'sid$space',
+    name: 'Projets',
+    path: '/Projets',
+    isFolder: true,
+    type: 'folder',
+    extraProps: shared ? { [SHARED_ICON_PROP]: shared } : {},
+    canUpload: () => canUpload
+  })
+}
+
+function mountPicker({ withPreference = false, canUpload = false, shared = '' } = {}) {
+  folder = makeFolder({ canUpload, shared })
   const plugins = defaultPlugins({ piniaOptions: { stubActions: false } })
   useConfigStore().loadConfig({ server: 'https://cloud.example.org/' } as never)
   if (withPreference) {
     useFolderIconsStore().setPreference(folder, { icon: 'music', color: 'red' })
   }
+  mocks = defaultComponentMocks()
   return mount(FolderIconPicker, {
-    props: { modal: mock<Modal>({ id: 'm1' }), resource: folder },
-    global: { plugins, stubs: { teleport: true, OcIcon: true } },
+    props: { modal: mock<Modal>({ id: 'm1' }), space, resource: folder },
+    global: { plugins, mocks, provide: mocks, stubs: { teleport: true, OcIcon: true } },
     attachTo: document.body
   })
 }
@@ -63,11 +81,11 @@ describe('FolderIconPicker', () => {
 
   it('filters icons with the search field (accents and case insensitive)', async () => {
     const wrapper = mountPicker()
-    await wrapper.find('input:not([type="file"])').setValue('MUSIC')
+    await wrapper.find('input:not([type="file"]):not([type="radio"])').setValue('MUSIC')
     const names = iconButtons(wrapper).map((b) => b.attributes('data-icon'))
     expect(names).toContain('music')
     expect(names).not.toContain('briefcase')
-    await wrapper.find('input:not([type="file"])').setValue('zzz')
+    await wrapper.find('input:not([type="file"]):not([type="radio"])').setValue('zzz')
     expect(iconButtons(wrapper)).toHaveLength(0)
     expect(wrapper.text()).toContain('No icon found')
   })
@@ -167,5 +185,71 @@ describe('FolderIconPicker', () => {
     const reopened = mountPicker()
     expect(reopened.find('[data-test-id="folder-icons-preview-image"]').exists()).toBe(true)
     wrapper.unmount()
+  })
+
+  describe('shared icon (everyone with access)', () => {
+    it('is disabled without permission to edit the folder', () => {
+      const wrapper = mountPicker()
+      const all = wrapper.find('[data-test-id="folder-icons-scope-all"]')
+      expect(all.attributes('disabled')).toBeDefined()
+      expect(wrapper.text()).toContain('Sharing it requires permission to edit this folder.')
+    })
+
+    it('writes the icon on the folder as a WebDAV property and updates the list', async () => {
+      const wrapper = mountPicker({ canUpload: true, withPreference: true })
+      await wrapper.find('[data-test-id="folder-icons-scope-all"]').setValue(true)
+      await wrapper.find('[data-icon="briefcase"]').trigger('click')
+      await wrapper.find('[data-color="blue"]').trigger('click')
+      await wrapper.find('.oc-modal-body-actions-confirm').trigger('click')
+      await new Promise((r) => setTimeout(r))
+
+      expect(mocks.$clientService.webdav.setProperties).toHaveBeenCalledWith(
+        space,
+        { path: '/Projets' },
+        { [SHARED_ICON_PROP]: '1;icon;briefcase;blue' },
+        { extraProps: [SHARED_ICON_PROP] }
+      )
+      expect(useResourcesStore().updateResourceField).toHaveBeenCalledWith({
+        id: 'f1',
+        field: 'extraProps',
+        value: expect.objectContaining({ [SHARED_ICON_PROP]: '1;icon;briefcase;blue' })
+      })
+      // l'icône personnelle masquerait l'icône commune : elle est retirée
+      expect(useFolderIconsStore().getPreference(folder)).toBeUndefined()
+      expect(useModals().removeModal).toHaveBeenCalledWith('m1')
+    })
+
+    it('opens on the shared icon and resets it with an empty value', async () => {
+      const wrapper = mountPicker({ canUpload: true, shared: '1;icon;camera;green' })
+      expect(
+        (wrapper.find('[data-test-id="folder-icons-scope-all"]').element as HTMLInputElement)
+          .checked
+      ).toBe(true)
+      expect(wrapper.find('[data-icon="camera"]').attributes('aria-checked')).toBe('true')
+      await wrapper.find('.folder-icons-reset').trigger('click')
+      await new Promise((r) => setTimeout(r))
+      expect(mocks.$clientService.webdav.setProperties).toHaveBeenCalledWith(
+        space,
+        { path: '/Projets' },
+        { [SHARED_ICON_PROP]: '' },
+        { extraProps: [SHARED_ICON_PROP] }
+      )
+    })
+
+    it('reports a permission error from the server and keeps the dialog open', async () => {
+      const wrapper = mountPicker({ canUpload: true })
+      vi.mocked(mocks.$clientService.webdav.setProperties).mockRejectedValue(
+        new DavHttpError('forbidden', undefined, undefined, 403)
+      )
+      await wrapper.find('[data-test-id="folder-icons-scope-all"]').setValue(true)
+      await wrapper.find('.oc-modal-body-actions-confirm').trigger('click')
+      await new Promise((r) => setTimeout(r))
+      expect(useMessages().showErrorMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'You are not allowed to change the icon of this folder for everyone'
+        })
+      )
+      expect(useModals().removeModal).not.toHaveBeenCalled()
+    })
   })
 })

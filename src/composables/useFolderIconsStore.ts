@@ -2,11 +2,42 @@ import { defineStore } from 'pinia'
 import { computed, ref, unref, watch } from 'vue'
 import { useConfigStore, useUserStore } from '@opencloud-eu/web-pkg'
 import { Resource } from '@opencloud-eu/web-client'
-import { FolderIconPreference, resolveFolderIcon } from '../catalog'
+import { FolderIconPreference, ResolvedFolderIcon, resolveFolderIcon } from '../catalog'
+import { decodeSharedPreference, SHARED_ICON_PROP } from '../shared'
 import { createLocalFolderIconStorage, folderKey, FolderIconMap, storageKey } from '../storage'
 
 export function isCustomizableFolder(resource: Resource) {
   return !!resource?.isFolder && resource.type !== 'space'
+}
+
+// Décodage des icônes partagées mis en cache par valeur brute : pas de revalidation à chaque rendu.
+// ponytail: vidé en bloc au-delà de 500 entrées, un LRU si les listes deviennent énormes.
+const sharedCache = new Map<string, ResolvedFolderIcon | undefined>()
+
+// Préférences personnelles : objets stables tant qu'ils ne sont pas modifiés, d'où un WeakMap.
+const personalCache = new WeakMap<FolderIconPreference, ResolvedFolderIcon | undefined>()
+
+function resolvePersonal(pref: FolderIconPreference | undefined) {
+  if (!pref) {
+    return undefined
+  }
+  if (!personalCache.has(pref)) {
+    personalCache.set(pref, resolveFolderIcon(pref))
+  }
+  return personalCache.get(pref)
+}
+
+function resolveShared(value: unknown) {
+  if (typeof value !== 'string' || !value) {
+    return undefined
+  }
+  if (!sharedCache.has(value)) {
+    if (sharedCache.size > 500) {
+      sharedCache.clear()
+    }
+    sharedCache.set(value, resolveFolderIcon(decodeSharedPreference(value)))
+  }
+  return sharedCache.get(value)
 }
 
 /**
@@ -37,8 +68,21 @@ export const useFolderIconsStore = defineStore('web-app-folder-icons', () => {
     return unref(icons)[folderKey(resource)]
   }
 
+  /** Icône partagée par les membres, lue dans la réponse PROPFIND (aucune requête dédiée). */
+  function getSharedPreference(resource: Resource): FolderIconPreference | undefined {
+    if (!isCustomizableFolder(resource)) {
+      return undefined
+    }
+    return decodeSharedPreference(resource.extraProps?.[SHARED_ICON_PROP])
+  }
+
+  /** Priorité à la préférence personnelle, sinon l'icône partagée du dossier. */
   function getIcon(resource: Resource) {
-    return resolveFolderIcon(getPreference(resource))
+    const personal = resolvePersonal(getPreference(resource))
+    if (personal || !isCustomizableFolder(resource)) {
+      return personal
+    }
+    return resolveShared(resource.extraProps?.[SHARED_ICON_PROP])
   }
 
   /** `undefined` réinitialise le dossier. Lève une exception si l'écriture échoue (état inchangé). */
@@ -57,5 +101,5 @@ export const useFolderIconsStore = defineStore('web-app-folder-icons', () => {
     icons.value = next
   }
 
-  return { isAvailable, getPreference, getIcon, setPreference }
+  return { isAvailable, getPreference, getSharedPreference, getIcon, setPreference }
 })

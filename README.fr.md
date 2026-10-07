@@ -28,13 +28,13 @@ Sources examinées, toutes au tag `v8.1.0` :
 outillage, Docker Compose de dev) et la
 [documentation d’installation des applications web](https://docs.opencloud.eu/docs/admin/configuration/web-applications).
 
-| Question                                | Constat                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Outillage                               | pnpm 11, Vite 8, Vue 3.5, TypeScript 6, Vitest 5, `@opencloud-eu/extension-sdk` 8.1 (module federation). Repris tel quel.                                                                                                                                                                                                                                                                                                                                                        |
-| Ajouter une action au menu contextuel   | **Possible** : extension `action` sur le point `global.files.context-actions` (même mécanisme que l’extension officielle _unzip_).                                                                                                                                                                                                                                                                                                                                               |
-| Remplacer l’icône dans les vues natives | **Impossible sans toucher au cœur** (voir ci-dessous).                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| Vue de dossiers personnalisée           | **Possible** : type d’extension public `folderView` (`packages/web-pkg/src/composables/piniaStores/extensionRegistry/types.ts`) et points `app.files.folder-views.*` (`packages/web-app-files/src/extensionPoints.ts`). `ResourceTable` (exporté par `@opencloud-eu/web-pkg`) expose un slot public `image`.                                                                                                                                                                     |
-| Stockage serveur des préférences        | **Aucun mécanisme adapté** : le service _settings_ (`/api/v0/settings/values-save`) n’accepte que des réglages déclarés côté serveur (bundle + settingId), une extension web ne peut pas en créer. Les propriétés WebDAV seraient attachées au dossier, donc visibles par tous ceux qui y ont accès (pas une préférence personnelle). → stockage local (`localStorage`), comme le fait déjà OpenCloud Web pour ses propres préférences d’extensions (`extensionPreferences.ts`). |
+| Question                                | Constat                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Outillage                               | pnpm 11, Vite 8, Vue 3.5, TypeScript 6, Vitest 5, `@opencloud-eu/extension-sdk` 8.1 (module federation). Repris tel quel.                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Ajouter une action au menu contextuel   | **Possible** : extension `action` sur le point `global.files.context-actions` (même mécanisme que l’extension officielle _unzip_).                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Remplacer l’icône dans les vues natives | **Impossible sans toucher au cœur** (voir ci-dessous).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Vue de dossiers personnalisée           | **Possible** : type d’extension public `folderView` (`packages/web-pkg/src/composables/piniaStores/extensionRegistry/types.ts`) et points `app.files.folder-views.*` (`packages/web-app-files/src/extensionPoints.ts`). `ResourceTable` (exporté par `@opencloud-eu/web-pkg`) expose un slot public `image`.                                                                                                                                                                                                                                                     |
+| Stockage serveur des préférences        | **Aucun mécanisme adapté** : le service _settings_ (`/api/v0/settings/values-save`) n’accepte que des réglages déclarés côté serveur (bundle + settingId), une extension web ne peut pas en créer. Les propriétés WebDAV sont attachées au dossier, donc visibles par tous ceux qui y ont accès. → icônes **personnelles** en stockage local (`localStorage`), comme OpenCloud Web pour ses propres préférences d’extensions ; icônes **partagées** en propriété WebDAV du dossier (voir [Icônes personnelles et partagées](#icônes-personnelles-et-partagées)). |
 
 ### Pourquoi le rendu natif ne peut pas être remplacé
 
@@ -123,7 +123,7 @@ décompresser dans le dossier des applications web d’OpenCloud (il contient un
 `folder-icons/`, comme les extensions officielles) puis redémarrer OpenCloud :
 
 ```bash
-unzip folder-icons-0.1.0.zip -d "$OC_DATA_DIR/web/assets/apps/"
+unzip folder-icons-0.2.0.zip -d "$OC_DATA_DIR/web/assets/apps/"
 ```
 
 Sinon, compiler depuis les sources :
@@ -212,13 +212,44 @@ variables `WEB_OPTION_*`).
 ## Utilisation
 
 1. Clic droit sur un dossier → **Personnaliser l’icône**.
-2. Choisir une icône (recherche possible) et une couleur, puis **Enregistrer**.
-3. En mode remplacement, l’icône apparaît aussitôt en Grille, Liste et Liste condensée. En mode
+2. Sous **Appliquer à**, choisir **Moi uniquement** ou **Toutes les personnes ayant accès** (ce
+   second choix demande le droit de modifier le dossier).
+3. Choisir une icône (recherche possible) et une couleur, ou importer une image, puis
+   **Enregistrer**.
+4. En mode remplacement, l’icône apparaît aussitôt en Grille, Liste et Liste condensée. En mode
    par défaut, ouvrir les **options d’affichage** de la liste et choisir **Liste avec icônes
    personnalisées** (OpenCloud mémorise ce choix).
-4. **Réinitialiser** dans la même fenêtre restaure l’icône d’origine.
+5. **Réinitialiser** retire l’icône pour la portée choisie (la vôtre ou celle partagée).
 
-## Stockage et portée des préférences
+## Icônes personnelles et partagées
+
+|                              | **Moi uniquement**                 | **Toutes les personnes ayant accès**                                                                                 |
+| ---------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Qui la voit                  | vous, dans ce navigateur           | tous ceux qui peuvent ouvrir le dossier : membres de l’espace, destinataires de partages, visiteurs d’un lien public |
+| Où elle est stockée          | `localStorage` du navigateur       | sur le dossier lui-même, en propriété WebDAV (côté serveur)                                                          |
+| Qui peut la définir          | toute personne qui voit le dossier | toute personne autorisée à téléverser dans le dossier (vérifié par le serveur)                                       |
+| Synchronisée entre appareils | non                                | oui                                                                                                                  |
+
+**Priorité** : votre icône personnelle l’emporte sur l’icône partagée, pour vous seulement.
+Enregistrer une icône partagée supprime votre icône personnelle de ce dossier, pour que vous
+voyiez la même chose que les autres.
+
+Fonctionnement de l’icône partagée :
+
+- écrite par un `PROPPATCH` WebDAV (`ocfoldericons:folder-icon`), le même mécanisme que celui
+  d’OpenCloud Web pour le jeton d’intégrité des coffres ; le serveur (reva) la range dans les
+  **attributs étendus** du dossier, rien n’est ajouté à son contenu ;
+- lue dans la liste normale des fichiers : l’extension demande à OpenCloud Web d’inclure cette
+  propriété dans chaque `PROPFIND` (`registerExtraProp`), donc **aucune requête par dossier** ;
+- valeur versionnée sans caractère XML spécial : `1;icon;<nom>;<couleur>` ou
+  `1;image;<PNG en base64>` ; une réinitialisation écrit une valeur vide ;
+- valeur écrite par n’importe quel membre autorisé, donc **considérée comme non fiable** :
+  seules les icônes du catalogue, les couleurs de la palette et un PNG de taille bornée sont
+  acceptés, sinon l’icône par défaut s’affiche ;
+- refus du serveur (droits, dossier verrouillé, valeur trop grande) affichés dans la fenêtre,
+  qui reste ouverte.
+
+## Stockage des icônes personnelles
 
 - **Personnel** : stocké dans le `localStorage` du navigateur, jamais envoyé au serveur ; les
   autres utilisateurs ne voient rien.
@@ -255,7 +286,15 @@ variables `WEB_OPTION_*`).
 | « Déplacer » vers **un autre espace**            | nouveau : OpenCloud Web fait une **copie puis suppression** (`transfer.ts`, `TransferType.COPY`) | icône perdue, à refaire ; l’ancienne entrée reste orpheline dans le stockage local (quelques octets) |
 | Supprimer puis restaurer depuis la corbeille     | identifiant normalement conservé                                                                 | à vérifier sur une instance réelle                                                                   |
 
+Une icône **partagée** est une propriété du dossier : elle le suit lors d’un renommage ou d’un
+déplacement dans le même espace. Lors d’une copie vers un autre espace, sa conservation dépend
+de la copie des attributs étendus : à vérifier.
+
 ## Désinstallation et suppression des préférences
+
+Les icônes **partagées** restent sur les dossiers sous forme de propriété invisible ; sans
+l’extension, rien ne les affiche. Pour en retirer une, la réinitialiser pour tout le monde
+**avant** de désinstaller.
 
 1. **D’abord**, si le mode remplacement est actif, retirer les trois identifiants de
    `WEB_OPTION_DISABLED_EXTENSIONS` (ou de `disabledExtensions`) et redémarrer : les vues natives
@@ -277,6 +316,11 @@ personnalisées » était sélectionnée, OpenCloud revient à une vue native un
 retirée.
 
 ## Limites connues
+
+- Icônes partagées visibles par toute personne qui peut lister le dossier, y compris via un lien
+  public. Une grande image importée peut être refusée par un système de fichiers limitant les
+  attributs étendus (ext4 : environ 4 Ko par fichier ; ZFS, XFS, Btrfs : bien plus) : utiliser
+  alors une icône du catalogue ou une image plus simple.
 
 - Sans configuration, icônes visibles **uniquement dans la vue « Liste avec icônes
   personnalisées »**. Le mode remplacement demande l’accès administrateur (variable
@@ -384,7 +428,7 @@ Organisation du code :
 
 - `pnpm check:types`, `pnpm lint`, `pnpm format:check` : sans erreur.
 - `pnpm build` : réussi (bundle module federation + `manifest.json`).
-- `pnpm test:unit` : **53 tests réussis**. Ce sont des tests unitaires avec `localStorage`
+- `pnpm test:unit` : **65 tests réussis**. Ce sont des tests unitaires avec `localStorage`
   simulé (happy-dom) et `ResourceTable` remplacée par un composant de substitution ; ils
   **ne constituent pas une validation dans OpenCloud**. Ils couvrent : sélection,
   enregistrement, réinitialisation, persistance après rechargement (nouvelle instance de store),
@@ -418,6 +462,9 @@ Organisation du code :
 - [ ] Comportement dans « Partagés avec moi » et dans la recherche.
 - [ ] Stockage bloqué (navigation privée stricte) : icônes natives, message d’erreur à l’enregistrement.
 - [ ] Import PNG et ICO depuis la modale, affichage dans la vue liste en thème clair et sombre.
+- [ ] Icône partagée : enregistrement, affichage chez un autre membre de l’espace, refus pour un
+      membre en lecture seule, image importée sur votre système de fichiers, copie vers un autre
+      espace.
 - [ ] Import `.ico` dans Firefox et Safari.
 - [ ] Mode remplacement : avec `WEB_OPTION_DISABLED_EXTENSIONS`, le sélecteur affiche une seule
       fois Grille / Liste / Liste condensée, les icônes apparaissent dans les trois, les

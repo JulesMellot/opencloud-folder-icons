@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/JulesMellot/opencloud-folder-icons/releases/tag/v0.2.0) - 2026-10-07
+
+### ✨ Features
+
+- Shared icons: choose **Everyone with access** to store the icon on the folder itself (WebDAV property), visible to every member of the space and synced across devices. Requires permission to edit the folder; your personal icon still takes precedence for you
+- Shared icons are read from the regular folder listing (no extra request per folder) and validated as untrusted input
+
 ## [0.1.0](https://github.com/JulesMellot/opencloud-folder-icons/releases/tag/v0.1.0) - 2026-10-07
 
 ### ✨ Features

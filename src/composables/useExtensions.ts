@@ -121,12 +121,12 @@ export function useExtensions() {
     label: () => $gettext('Customize icon'),
     isVisible: ({ resources }) =>
       unref(store.isAvailable) && resources.length === 1 && isCustomizableFolder(resources[0]),
-    handler: ({ resources }) => {
+    handler: ({ space, resources }) => {
       dispatchModal({
         title: $gettext('Customize icon'),
         hideConfirmButton: true,
         customComponent: markRaw(FolderIconPicker),
-        customComponentAttrs: () => ({ resource: resources[0] })
+        customComponentAttrs: () => ({ space, resource: resources[0] })
       })
     },
     class: 'oc-files-actions-folder-icons-customize'

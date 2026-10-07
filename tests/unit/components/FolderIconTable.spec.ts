@@ -3,6 +3,7 @@ import { Resource } from '@opencloud-eu/web-client'
 import { useConfigStore } from '@opencloud-eu/web-pkg'
 import { defaultPlugins, mount } from '@opencloud-eu/web-test-helpers'
 import { defineComponent, PropType } from 'vue'
+import { SHARED_ICON_PROP } from '../../../src/shared'
 import FolderIconTable from '../../../src/components/FolderIconTable.vue'
 import { useFolderIconsStore } from '../../../src/composables/useFolderIconsStore'
 
@@ -105,5 +106,12 @@ describe('FolderIconTable', () => {
     await wrapper.vm.$nextTick()
     expect(wrapper.findAll('.parent-image').map((e) => e.text())).toEqual(['f2'])
     expect(wrapper.find('[data-test-id="folder-icons-custom"]').exists()).toBe(true)
+  })
+
+  it('renders the icon shared on the folder by another member', () => {
+    const wrapper = mountTable([
+      res('f1', { extraProps: { [SHARED_ICON_PROP]: '1;icon;camera;' } })
+    ])
+    expect(wrapper.find('[data-test-id="folder-icons-custom"]').attributes('name')).toBe('camera')
   })
 })

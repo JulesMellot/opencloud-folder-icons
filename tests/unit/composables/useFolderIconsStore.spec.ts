@@ -3,6 +3,7 @@ import { Resource } from '@opencloud-eu/web-client'
 import { createMockStore } from '@opencloud-eu/web-test-helpers'
 import { setActivePinia } from 'pinia'
 import { useConfigStore } from '@opencloud-eu/web-pkg'
+import { SHARED_ICON_PROP } from '../../../src/shared'
 import { useFolderIconsStore } from '../../../src/composables/useFolderIconsStore'
 
 const SERVER = 'https://cloud.example.org/'
@@ -106,5 +107,37 @@ describe('useFolderIconsStore', () => {
     expect(store.isAvailable).toBe(false)
     expect(store.getIcon(folder())).toBeUndefined()
     expect(() => store.setPreference(folder(), { icon: 'music' })).toThrow()
+  })
+
+  describe('shared icons', () => {
+    const shared = (value: string, extra: Partial<Resource> = {}) =>
+      folder({ extraProps: { [SHARED_ICON_PROP]: value }, ...extra })
+
+    it('shows the icon stored on the folder when there is no personal one', () => {
+      expect(load().getIcon(shared('1;icon;camera;green'))).toEqual({
+        kind: 'icon',
+        name: 'camera',
+        fillType: 'fill',
+        color: '#22c55e'
+      })
+      expect(load().getSharedPreference(shared('1;icon;camera;green'))).toEqual({
+        icon: 'camera',
+        color: 'green'
+      })
+    })
+
+    it('lets the personal icon take precedence', () => {
+      const store = load()
+      store.setPreference(folder(), { icon: 'music' })
+      expect(store.getIcon(shared('1;icon;camera;green'))).toMatchObject({ name: 'music' })
+    })
+
+    it('ignores invalid shared values and files', () => {
+      const store = load()
+      expect(store.getIcon(shared('1;icon;evil;'))).toBeUndefined()
+      expect(
+        store.getIcon(shared('1;icon;camera;', { isFolder: false, type: 'file' }))
+      ).toBeUndefined()
+    })
   })
 })

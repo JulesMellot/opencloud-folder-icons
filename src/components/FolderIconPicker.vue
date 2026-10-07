@@ -26,6 +26,30 @@
       </div>
     </div>
 
+    <fieldset class="ext:border-0 ext:p-0 ext:m-0 ext:mb-4" data-test-id="folder-icons-scope">
+      <legend class="ext:text-sm ext:font-semibold ext:mb-1">{{ $gettext('Apply to') }}</legend>
+      <div class="ext:flex ext:flex-wrap ext:gap-x-4 ext:gap-y-1">
+        <label class="ext:flex ext:items-center ext:gap-2 ext:cursor-pointer">
+          <input v-model="scope" type="radio" value="me" data-test-id="folder-icons-scope-me" />
+          {{ $gettext('Only me') }}
+        </label>
+        <label
+          class="ext:flex ext:items-center ext:gap-2"
+          :class="canShare ? 'ext:cursor-pointer' : 'ext:opacity-50 ext:cursor-not-allowed'"
+        >
+          <input
+            v-model="scope"
+            type="radio"
+            value="all"
+            :disabled="!canShare"
+            data-test-id="folder-icons-scope-all"
+          />
+          {{ $gettext('Everyone with access') }}
+        </label>
+      </div>
+      <p class="ext:text-sm ext:m-0 ext:mt-1" v-text="scopeHint" />
+    </fieldset>
+
     <div class="ext:flex ext:flex-wrap ext:items-center ext:gap-2 ext:mb-4">
       <input
         ref="fileInput"
@@ -47,49 +71,12 @@
       <span class="ext:text-sm" v-text="$gettext('PNG or ICO, 1 MB max.')" />
     </div>
 
-    <oc-text-input
-      v-model="search"
-      class="ext:mb-4"
-      :label="$gettext('Search icons')"
-      :clear-button-enabled="true"
-      data-test-id="folder-icons-search"
+    <icon-catalog
+      :model-value="selectedIcon"
+      :active="!selectedImage"
+      :color="selectedHex"
+      @update:model-value="selectIcon"
     />
-
-    <div class="ext:max-h-72 ext:overflow-y-auto ext:pr-1">
-      <section v-for="group in groups" :key="group.id" class="ext:mb-3">
-        <h3 :id="`folder-icons-cat-${group.id}`" class="ext:text-sm ext:font-semibold ext:mb-1">
-          {{ group.label }}
-        </h3>
-        <div
-          role="radiogroup"
-          :aria-labelledby="`folder-icons-cat-${group.id}`"
-          class="ext:grid ext:grid-cols-8 ext:gap-1"
-          @keydown="onArrowKey($event, flatIcons, selectedIcon, selectIcon, 'data-icon')"
-        >
-          <button
-            v-for="icon in group.icons"
-            :key="icon.name"
-            type="button"
-            role="radio"
-            :aria-checked="!selectedImage && icon.name === selectedIcon"
-            :aria-label="icon.label"
-            :title="icon.label"
-            :tabindex="icon.name === focusableIcon ? 0 : -1"
-            :data-icon="icon.name"
-            class="ext:flex ext:items-center ext:justify-center ext:p-2 ext:rounded-md ext:border-2 ext:cursor-pointer ext:bg-transparent ext:hover:bg-role-surface-container ext:focus-visible:outline-2"
-            :class="
-              !selectedImage && icon.name === selectedIcon
-                ? 'ext:border-role-primary'
-                : 'ext:border-transparent'
-            "
-            @click="selectIcon(icon.name)"
-          >
-            <oc-icon :name="icon.name" fill-type="fill" :color="selectedHex" size-class="size-6" />
-          </button>
-        </div>
-      </section>
-      <p v-if="!groups.length" class="ext:text-sm" v-text="$gettext('No icon found')" />
-    </div>
 
     <h3 id="folder-icons-colors" class="ext:text-sm ext:font-semibold ext:mt-4 ext:mb-1">
       {{ $gettext('Color') }}
@@ -133,7 +120,7 @@
       </oc-button>
       <oc-button
         class="folder-icons-reset ext:ml-2"
-        :disabled="!currentPreference"
+        :disabled="!scopePreference || isSaving"
         @click="save(undefined)"
       >
         {{ $gettext('Reset') }}
@@ -141,7 +128,8 @@
       <oc-button
         class="oc-modal-body-actions-confirm ext:ml-2"
         appearance="filled"
-        :disabled="isImporting"
+        :disabled="isImporting || isSaving"
+        :show-spinner="isSaving"
         @click="save(selection)"
       >
         {{ $gettext('Save') }}
@@ -151,35 +139,71 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, unref, useTemplateRef } from 'vue'
+import { computed, ref, unref, useTemplateRef } from 'vue'
 import { useGettext } from 'vue3-gettext'
-import { Modal, modalActionsTarget, useMessages, useModals } from '@opencloud-eu/web-pkg'
-import { Resource } from '@opencloud-eu/web-client'
-import { FolderIconPreference, getCategories, getIcons, getPalette } from '../catalog'
+import {
+  Modal,
+  modalActionsTarget,
+  useClientService,
+  useMessages,
+  useModals,
+  useResourcesStore,
+  useUserStore
+} from '@opencloud-eu/web-pkg'
+import { HttpError, Resource, SpaceResource } from '@opencloud-eu/web-client'
+import { FolderIconPreference, getIcons, getPalette } from '../catalog'
 import { useFolderIconsStore } from '../composables/useFolderIconsStore'
 import { ACCEPT_ATTRIBUTE, ImageImportError, imageFileToDataUrl } from '../image'
+import { onArrowKey } from '../rovingFocus'
+import { encodeSharedPreference, SHARED_ICON_PROP } from '../shared'
+import IconCatalog from './IconCatalog.vue'
 
-const { modal, resource } = defineProps<{ modal: Modal; resource: Resource }>()
+const { modal, space, resource } = defineProps<{
+  modal: Modal
+  space: SpaceResource
+  resource: Resource
+}>()
 defineEmits<{ (e: 'cancel'): void }>()
 
 const { $gettext } = useGettext()
 const store = useFolderIconsStore()
 const { removeModal } = useModals()
 const { showMessage, showErrorMessage } = useMessages()
+const clientService = useClientService()
+const resourcesStore = useResourcesStore()
+const userStore = useUserStore()
 
 const icons = getIcons($gettext)
-const categories = getCategories($gettext)
 const colors = [{ id: '', label: $gettext('Default color'), hex: '' }, ...getPalette($gettext)]
 const colorIds = colors.map(({ id }) => id)
 
-const currentPreference = store.getPreference(resource)
-const savedIcon = currentPreference && 'icon' in currentPreference ? currentPreference : undefined
+const personalPreference = store.getPreference(resource)
+const sharedPreference = store.getSharedPreference(resource)
+// Écrire une métadonnée demande le même droit que téléverser dans le dossier (le serveur tranche).
+const canShare = !!resource.canUpload?.({ user: userStore.user })
+const scope = ref<'me' | 'all'>(!personalPreference && sharedPreference ? 'all' : 'me')
+const scopePreference = computed(() =>
+  unref(scope) === 'all' ? sharedPreference : personalPreference
+)
+const scopeHint = computed(() => {
+  if (unref(scope) === 'all') {
+    return $gettext('Everyone who can access this folder will see this icon.')
+  }
+  return canShare
+    ? $gettext('Only you will see this icon, in this browser.')
+    : $gettext(
+        'Only you will see this icon, in this browser. Sharing it requires permission to edit this folder.'
+      )
+})
+
+const initialPreference = personalPreference ?? sharedPreference
+const savedIcon = initialPreference && 'icon' in initialPreference ? initialPreference : undefined
 const selectedIcon = ref(savedIcon?.icon ?? 'folder')
 const selectedColor = ref(savedIcon?.color ?? '')
 const selectedImage = ref(
-  currentPreference && 'image' in currentPreference ? currentPreference.image : ''
+  initialPreference && 'image' in initialPreference ? initialPreference.image : ''
 )
-const search = ref('')
+const isSaving = ref(false)
 const isImporting = ref(false)
 const fileInput = useTemplateRef<HTMLInputElement>('fileInput')
 
@@ -200,59 +224,12 @@ const previewLabel = computed(() => {
   return `${icon} – ${color}`
 })
 
-function normalize(value: string) {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-}
-
-const groups = computed(() => {
-  const term = normalize(unref(search).trim())
-  return categories
-    .map((category) => ({
-      ...category,
-      icons: icons.filter(
-        (icon) =>
-          icon.category === category.id &&
-          (!term || normalize(`${icon.label} ${icon.name} ${category.label}`).includes(term))
-      )
-    }))
-    .filter((group) => group.icons.length)
-})
-const flatIcons = computed(() => unref(groups).flatMap((g) => g.icons.map(({ name }) => name)))
-// Tabulation « roving » : un seul bouton focalisable dans le catalogue, les flèches font le reste.
-const focusableIcon = computed(() =>
-  unref(flatIcons).includes(unref(selectedIcon)) ? unref(selectedIcon) : unref(flatIcons)[0]
-)
-
 function selectIcon(name: string) {
   selectedIcon.value = name
   selectedImage.value = ''
 }
 function selectColor(id: string) {
   selectedColor.value = id
-}
-
-const STEPS: Record<string, number> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }
-
-async function onArrowKey(
-  event: KeyboardEvent,
-  items: string[],
-  current: string,
-  select: (value: string) => void,
-  attr: 'data-icon' | 'data-color'
-) {
-  const step = STEPS[event.key]
-  if (!step || !items.length) {
-    return
-  }
-  event.preventDefault()
-  const root = (event.currentTarget as HTMLElement).closest('.folder-icons-picker')
-  const next = items[(Math.max(items.indexOf(current), 0) + step + items.length) % items.length]
-  select(next)
-  await nextTick()
-  root?.querySelector<HTMLElement>(`[${attr}="${next}"]`)?.focus()
 }
 
 async function onFileSelected(event: Event) {
@@ -278,15 +255,50 @@ async function onFileSelected(event: Event) {
   }
 }
 
-function save(pref: FolderIconPreference | undefined) {
+async function saveShared(pref: FolderIconPreference | undefined) {
+  const value = encodeSharedPreference(pref)
+  await clientService.webdav.setProperties(
+    space,
+    { path: resource.path },
+    { [SHARED_ICON_PROP]: value },
+    { extraProps: [SHARED_ICON_PROP] }
+  )
+  resourcesStore.updateResourceField({
+    id: resource.id,
+    field: 'extraProps',
+    value: { ...resource.extraProps, [SHARED_ICON_PROP]: value }
+  })
+  // Sinon l'icône personnelle, prioritaire, masquerait l'icône commune pour son auteur.
+  if (pref && personalPreference) {
+    try {
+      store.setPreference(resource, undefined)
+    } catch {
+      // stockage local indisponible : l'icône commune est enregistrée quand même
+    }
+  }
+}
+
+async function save(pref: FolderIconPreference | undefined) {
+  isSaving.value = true
   try {
-    store.setPreference(resource, pref)
-  } catch {
+    if (unref(scope) === 'all') {
+      await saveShared(pref)
+    } else {
+      store.setPreference(resource, pref)
+    }
+  } catch (e) {
+    const status = (e as HttpError)?.statusCode
+    const titles: Record<number, string> = {
+      403: $gettext('You are not allowed to change the icon of this folder for everyone'),
+      423: $gettext('This folder is locked')
+    }
     showErrorMessage({
-      title: $gettext('The folder icon could not be saved'),
-      errors: [new Error('folder icon storage unavailable')]
+      title: titles[status] ?? $gettext('The folder icon could not be saved'),
+      errors: [new Error(`folder icon save failed${status ? ` (${status})` : ''}`)]
     })
     return
+  } finally {
+    isSaving.value = false
   }
   removeModal(modal.id)
   showMessage({

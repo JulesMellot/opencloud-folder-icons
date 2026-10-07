@@ -59,7 +59,7 @@ describe('useExtensions', () => {
       action.handler({ space, resources: [folder] })
       const modal = useModals().modals.at(-1)
       expect(modal.customComponent).toBe(FolderIconPicker)
-      expect(modal.customComponentAttrs()).toEqual({ resource: folder })
+      expect(modal.customComponentAttrs()).toEqual({ space, resource: folder })
     })
   })
 
