@@ -1,0 +1,4 @@
+{
+  "extends": "@opencloud-eu/tsconfig",
+  "include": ["src", "tests", "types.d.ts", "vite.config.ts"]
+}

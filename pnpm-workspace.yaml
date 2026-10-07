@@ -1,0 +1,6 @@
+# Projet autonome : ce fichier ne sert qu'aux réglages pnpm (repris du dépôt officiel web-extensions).
+autoInstallPeers: true
+publicHoistPattern:
+  - '*eslint*'
+overrides:
+  '@module-federation/vite': '1.14.2'
