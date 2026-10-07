@@ -117,6 +117,17 @@ masque son icône dès qu’un slot `image` existe : l’extension rend alors le
 
 ## Installation
 
+**Le plus simple** : télécharger `folder-icons-<version>.zip` depuis la
+[dernière release](https://github.com/JulesMellot/opencloud-folder-icons/releases/latest), le
+décompresser dans le dossier des applications web d’OpenCloud (il contient un dossier
+`folder-icons/`, comme les extensions officielles) puis redémarrer OpenCloud :
+
+```bash
+unzip folder-icons-0.1.0.zip -d "$OC_DATA_DIR/web/assets/apps/"
+```
+
+Sinon, compiler depuis les sources :
+
 Prérequis de compilation : Node.js 22 ou plus récent et pnpm 11 (ou `npx pnpm@11.28.5` à la place de
 `pnpm` dans les commandes ci-dessous).
 

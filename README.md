@@ -31,7 +31,36 @@ _[Version française](README.fr.md)_
 
 ## Installation
 
-Requirements to build: Node.js 22+ and pnpm 11 (or use `npx pnpm@11.28.5` instead of `pnpm`).
+### From a release (recommended)
+
+Download `folder-icons-<version>.zip` from the
+[latest release](https://github.com/JulesMellot/opencloud-folder-icons/releases/latest) and unzip
+it into OpenCloud’s web apps directory. The archive contains a `folder-icons/` folder, as the
+official OpenCloud extensions do:
+
+```bash
+unzip folder-icons-0.1.0.zip -d "$OC_DATA_DIR/web/assets/apps/"
+```
+
+| Setup                                                                  | Web apps directory                                                                                          |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Binary / package                                                       | `$OC_DATA_DIR/web/assets/apps/` (create it if needed)                                                       |
+| [opencloud-compose](https://github.com/opencloud-eu/opencloud-compose) | `opencloud-compose/config/opencloud/apps/`                                                                  |
+| Any Docker setup                                                       | `<host path mounted on OC_BASE_DATA_PATH>/web/assets/apps/`, or mount the folder with `WEB_ASSET_APPS_PATH` |
+| TrueNAS SCALE app                                                      | `<your OpenCloud data dataset>/web/assets/apps/`, then `chown -R 3001:3000` the `folder-icons` folder       |
+
+Restart OpenCloud. No `apps.yaml` configuration is needed, and nothing is loaded from external
+services: icons come from the Remix Icon set that OpenCloud already serves (`/icons/*.svg`).
+
+Checksums are published with each release (`sha256sum.txt`):
+
+```bash
+shasum -a 256 -c sha256sum.txt
+```
+
+### From source
+
+Requirements: Node.js 22+ and pnpm 11 (or use `npx pnpm@11.28.5` instead of `pnpm`).
 
 ```bash
 git clone https://github.com/JulesMellot/opencloud-folder-icons.git
@@ -41,23 +70,11 @@ git clone https://github.com/JulesMellot/opencloud-folder-icons.git
 cd opencloud-folder-icons && pnpm install --frozen-lockfile && pnpm build
 ```
 
-The extension is now in `dist/` (`manifest.json`, `js/`, `assets/`). Copy it into OpenCloud’s
-web apps directory, as described in the
-[official documentation](https://docs.opencloud.eu/docs/admin/configuration/web-applications):
-
-| Setup                                                                  | Copy `dist/` contents to                                                                                         |
-| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Binary / package                                                       | `$OC_DATA_DIR/web/assets/apps/folder-icons/` (create it if needed)                                               |
-| [opencloud-compose](https://github.com/opencloud-eu/opencloud-compose) | `opencloud-compose/config/opencloud/apps/folder-icons/`                                                          |
-| Any Docker setup                                                       | `<host path mounted on OC_BASE_DATA_PATH>/web/assets/apps/folder-icons/`, or mount it with `WEB_ASSET_APPS_PATH` |
-| TrueNAS SCALE app                                                      | `<your OpenCloud data dataset>/web/assets/apps/folder-icons/`, then `chown -R 3001:3000` that folder             |
+Then copy the contents of `dist/` into a `folder-icons/` folder of the web apps directory above:
 
 ```bash
 mkdir -p "$OC_DATA_DIR/web/assets/apps/folder-icons" && cp -R dist/. "$OC_DATA_DIR/web/assets/apps/folder-icons/"
 ```
-
-Restart OpenCloud. No `apps.yaml` configuration is needed, and nothing is loaded from external
-services: icons come from the Remix Icon set that OpenCloud already serves (`/icons/*.svg`).
 
 ## Show icons in the default views
 
