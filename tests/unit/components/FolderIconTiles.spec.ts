@@ -59,4 +59,13 @@ describe('FolderIconTiles', () => {
     expect(wrapper.find('.parent-image').text()).toBe('f1')
     expect(wrapper.find('.badge').text()).toBe('f1')
   })
+
+  it('lets an uploaded image fill the tile preview', async () => {
+    const custom = folder('f1')
+    const wrapper = mountTiles([custom])
+    useFolderIconsStore().setPreference(custom, { image: 'data:image/webp;base64,UklGRg==' })
+    await wrapper.vm.$nextTick()
+    const img = wrapper.find('[data-test-id="folder-icons-custom-image"]')
+    expect(img.classes()).toEqual(expect.arrayContaining(['ext:size-full', 'ext:object-contain']))
+  })
 })

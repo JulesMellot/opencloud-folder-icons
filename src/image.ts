@@ -1,6 +1,6 @@
 // Import d'une image personnalisée (PNG ou ICO). Le fichier n'est jamais stocké tel quel :
-// il est décodé par le navigateur puis redessiné dans un canvas 64×64 et ré-encodé en PNG.
-// On ne garde donc que des pixels, quelle que soit la taille ou le contenu du fichier d'origine.
+// il est décodé par le navigateur, redessiné dans un canvas (192 px max., proportions conservées)
+// et ré-encodé en WebP ou PNG. On ne garde donc que des pixels, quel que soit le fichier d'origine.
 import { MAX_IMAGE_DATA_URL_LENGTH } from './catalog'
 
 export const ACCEPTED_EXTENSIONS = ['png', 'ico']
@@ -11,7 +11,10 @@ export const ACCEPT_ATTRIBUTE = [
   ...ACCEPTED_MIME_TYPES
 ].join(',')
 export const MAX_FILE_SIZE = 1024 * 1024
-export const IMAGE_SIZE = 64
+/** Tailles essayées (plus grand côté, en px) jusqu'à tenir sous MAX_IMAGE_DATA_URL_LENGTH. */
+export const IMAGE_SIZES = [192, 160, 128, 96, 64]
+/** WebP d'abord (bien plus léger) ; un navigateur qui ne sait pas l'encoder renvoie du PNG. */
+const OUTPUT_TYPES = ['image/webp', 'image/png']
 
 export type ImageErrorReason = 'type' | 'size' | 'unreadable'
 
@@ -45,7 +48,7 @@ function decode(file: File): Promise<HTMLImageElement> {
   }).finally(() => URL.revokeObjectURL(url))
 }
 
-/** Fichier PNG/ICO → data URL PNG 64×64 (image centrée, proportions conservées). */
+/** Fichier PNG/ICO → data URL WebP ou PNG, 192 px max. sur le plus grand côté, sans marges. */
 export async function imageFileToDataUrl(file: File): Promise<string> {
   validateImageFile(file)
   const img = await decode(file)
@@ -56,21 +59,29 @@ export async function imageFileToDataUrl(file: File): Promise<string> {
   }
 
   const canvas = document.createElement('canvas')
-  canvas.width = canvas.height = IMAGE_SIZE
   const context = canvas.getContext('2d')
   if (!context) {
     throw new ImageImportError('unreadable')
   }
-  // Un .ico contient souvent plusieurs tailles : le navigateur décode la plus grande disponible.
-  const scale = Math.min(IMAGE_SIZE / width, IMAGE_SIZE / height)
-  const w = Math.round(width * scale)
-  const h = Math.round(height * scale)
-  context.imageSmoothingQuality = 'high'
-  context.drawImage(img, (IMAGE_SIZE - w) / 2, (IMAGE_SIZE - h) / 2, w, h)
+  for (const size of IMAGE_SIZES) {
+    // Jamais d'agrandissement : une icône 32×32 reste en 32×32 (un .ico contient souvent plusieurs
+    // tailles, le navigateur décode la plus grande disponible).
+    const scale = Math.min(1, size / Math.max(width, height))
+    canvas.width = Math.max(1, Math.round(width * scale))
+    canvas.height = Math.max(1, Math.round(height * scale))
+    context.clearRect(0, 0, canvas.width, canvas.height)
+    context.imageSmoothingQuality = 'high'
+    context.drawImage(img, 0, 0, canvas.width, canvas.height)
 
-  const dataUrl = canvas.toDataURL('image/png')
-  if (!dataUrl.startsWith('data:image/png;base64,') || dataUrl.length > MAX_IMAGE_DATA_URL_LENGTH) {
-    throw new ImageImportError('unreadable')
+    for (const type of OUTPUT_TYPES) {
+      const dataUrl = canvas.toDataURL(type, 0.9)
+      if (
+        dataUrl.startsWith(`data:${type};base64,`) &&
+        dataUrl.length <= MAX_IMAGE_DATA_URL_LENGTH
+      ) {
+        return dataUrl
+      }
+    }
   }
-  return dataUrl
+  throw new ImageImportError('unreadable')
 }

@@ -65,9 +65,12 @@ serait fragile et a été exclu, conformément au cahier des charges.
      et la catégorie) ;
    - palette de 10 couleurs + « Couleur par défaut » (couleur du thème) ;
    - **import d’une image personnelle** (bouton « Importer une image ») : fichiers **PNG** ou
-     **ICO**, 1 Mo maximum. L’image est décodée par le navigateur, redimensionnée en 64×64
-     (proportions conservées, marges transparentes) et ré-encodée en PNG avant d’être stockée :
-     seuls des pixels sont conservés, jamais le fichier d’origine. SVG, JPEG et fichiers
+     **ICO**, 1 Mo maximum. L’image est décodée par le navigateur, redessinée à **192 px** au plus
+     sur son plus grand côté (proportions conservées, sans marges, jamais agrandie) et ré-encodée
+     en **WebP** (ou PNG si le navigateur ne sait pas encoder le WebP) avant d’être stockée ; si
+     elle reste trop lourde, sa taille est réduite par paliers (160, 128, 96, 64 px). Seuls des
+     pixels sont conservés, jamais le fichier d’origine. En **Grille**, l’image remplit l’aperçu
+     de la tuile comme une miniature (sans rognage) et suit le curseur de taille des tuiles. SVG, JPEG et fichiers
      illisibles sont refusés avec un message. La palette ne s’applique pas aux images ;
      choisir une icône du catalogue remplace l’image ;
    - aperçu immédiat ;
@@ -123,7 +126,7 @@ décompresser dans le dossier des applications web d’OpenCloud (il contient un
 `folder-icons/`, comme les extensions officielles) puis redémarrer OpenCloud :
 
 ```bash
-unzip folder-icons-0.2.0.zip -d "$OC_DATA_DIR/web/assets/apps/"
+unzip folder-icons-0.3.0.zip -d "$OC_DATA_DIR/web/assets/apps/"
 ```
 
 Sinon, compiler depuis les sources :
@@ -242,9 +245,10 @@ Fonctionnement de l’icône partagée :
 - lue dans la liste normale des fichiers : l’extension demande à OpenCloud Web d’inclure cette
   propriété dans chaque `PROPFIND` (`registerExtraProp`), donc **aucune requête par dossier** ;
 - valeur versionnée sans caractère XML spécial : `1;icon;<nom>;<couleur>` ou
-  `1;image;<PNG en base64>` ; une réinitialisation écrit une valeur vide ;
+  `1;image;<PNG en base64>` ou `1;webp;<WebP en base64>` ; une réinitialisation écrit une valeur
+  vide ;
 - valeur écrite par n’importe quel membre autorisé, donc **considérée comme non fiable** :
-  seules les icônes du catalogue, les couleurs de la palette et un PNG de taille bornée sont
+  seules les icônes du catalogue, les couleurs de la palette et une image PNG / WebP de taille bornée sont
   acceptés, sinon l’icône par défaut s’affiche ;
 - refus du serveur (droits, dossier verrouillé, valeur trop grande) affichés dans la fenêtre,
   qui reste ouverte.
@@ -269,7 +273,7 @@ Fonctionnement de l’icône partagée :
   affecté.
 - **Pas de synchronisation** entre navigateurs ni entre appareils. Vider les données du site
   efface les personnalisations.
-- **Images importées** : environ 0,5 à 20 Ko chacune, stockées dans le même `localStorage`
+- **Images importées** : 32 Ko au plus chacune, stockées dans le même `localStorage`
   (quota du navigateur d’environ 5 Mo par site, partagé avec OpenCloud). Une même image
   utilisée pour plusieurs dossiers est stockée plusieurs fois. Quota atteint → message
   d’erreur, rien n’est perdu. L’image n’est jamais envoyée au serveur.
@@ -341,8 +345,8 @@ retirée.
 - Dossiers vus via « Partagés avec moi » : l’identifiant présenté au destinataire peut différer
   de celui vu à l’intérieur du partage ; une icône définie à un endroit peut ne pas apparaître à
   l’autre. À vérifier sur instance réelle.
-- Images importées limitées au PNG et à l’ICO, réduites en 64×64 (pas d’image haute
-  définition), non synchronisées, dupliquées si réutilisées sur plusieurs dossiers. Pas de
+- Images importées limitées au PNG et à l’ICO, 192 px au plus (pas d’image haute définition),
+  non synchronisées pour les icônes personnelles, dupliquées si réutilisées sur plusieurs dossiers. Pas de
   bibliothèque d’images réutilisables.
 - Décodage des `.ico` vérifié dans Chromium uniquement ; Firefox et Safari savent en principe
   les décoder, à confirmer.
@@ -415,7 +419,7 @@ Organisation du code :
 | `src/index.ts`, `src/composables/useExtensions.ts` | intégration OpenCloud (action + vue)                               |
 | `src/components/FolderIconPicker.vue`              | sélecteur d’icônes                                                 |
 | `src/catalog.ts`                                   | catalogue, palette, validation et résolution de l’apparence        |
-| `src/image.ts`                                     | import PNG/ICO : contrôles, redimensionnement 64×64, ré-encodage   |
+| `src/image.ts`                                     | import PNG/ICO : contrôles, redimensionnement 192 px, WebP/PNG     |
 | `src/storage.ts`                                   | persistance (interface + implémentation `localStorage` versionnée) |
 | `src/composables/useFolderIconsStore.ts`           | état partagé (chargé une fois, lecture O(1) par ligne)             |
 | `src/components/FolderIconTable.vue`               | vue liste (ResourceTable native + slot `image`)                    |
@@ -428,7 +432,7 @@ Organisation du code :
 
 - `pnpm check:types`, `pnpm lint`, `pnpm format:check` : sans erreur.
 - `pnpm build` : réussi (bundle module federation + `manifest.json`).
-- `pnpm test:unit` : **65 tests réussis**. Ce sont des tests unitaires avec `localStorage`
+- `pnpm test:unit` : **70 tests réussis**. Ce sont des tests unitaires avec `localStorage`
   simulé (happy-dom) et `ResourceTable` remplacée par un composant de substitution ; ils
   **ne constituent pas une validation dans OpenCloud**. Ils couvrent : sélection,
   enregistrement, réinitialisation, persistance après rechargement (nouvelle instance de store),
@@ -443,8 +447,9 @@ Organisation du code :
   aperçu natif conservé hors dossiers personnalisés, taille d’icône selon la taille de tuile,
   slot `image` du parent relayé, par ex. images d’espaces).
 - Traitement d’image **dans un vrai navigateur (Chromium)**, via une page de test isolée
-  chargeant `src/image.ts` compilé : un PNG 400×100 donne un PNG 64×64 centré avec marges
-  transparentes ; un vrai fichier `.ico` (type MIME vide) est décodé ; un faux PNG est refusé
+  chargeant `src/image.ts` compilé : un PNG 400×100 donne un WebP 192×48 sans marges ; un vrai
+  fichier `.ico` 32×32 (type MIME vide) reste en 32×32 ; une image de bruit aléatoire 400×400
+  (pire cas de compression) tient dans la limite en WebP 192×192 ; un faux PNG est refusé
   (« illisible ») ; un SVG est refusé avant décodage.
 
 ### Restant à vérifier sur une instance OpenCloud 8.1 réelle

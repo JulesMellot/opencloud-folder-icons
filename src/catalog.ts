@@ -10,16 +10,20 @@ export type PaletteColor = { id: string; label: string; hex: string }
 
 /**
  * Préférence stockée pour un dossier : une icône du catalogue (`color` absent = couleur du thème)
- * ou une image importée, toujours ré-encodée en PNG 64×64 (data URL) avant stockage.
+ * ou une image importée, toujours redessinée (192 px max.) et ré-encodée en WebP ou PNG (data URL)
+ * avant stockage.
  */
 export type FolderIconPreference = { icon: string; color?: string } | { image: string }
 
 export type ResolvedFolderIcon =
   { kind: 'icon'; name: string; fillType: 'fill'; color: string } | { kind: 'image'; src: string }
 
-/** Plafond d'une image stockée (un PNG 64×64 non compressé tient en ~22 000 caractères base64). */
+/**
+ * Plafond d'une image stockée : tient dans un attribut étendu (ZFS, XFS, Btrfs) et ne pèse pas sur
+ * le quota du navigateur. L'import réduit la taille jusqu'à passer sous ce seuil.
+ */
 export const MAX_IMAGE_DATA_URL_LENGTH = 32_000
-const PNG_DATA_URL = /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/
+const IMAGE_DATA_URL = /^data:image\/(png|webp);base64,[A-Za-z0-9+/]+={0,2}$/
 
 type Gettext = (msgid: string) => string
 
@@ -142,7 +146,7 @@ const identity: Gettext = (s) => s
 const ICON_NAMES = new Set(getIcons(identity).map(({ name }) => name))
 const COLOR_HEX = new Map(getPalette(identity).map(({ id, hex }) => [id, hex]))
 
-/** Garde-fou : icônes du catalogue, couleurs de la palette ou PNG en data URL de taille bornée. */
+/** Garde-fou : icônes du catalogue, couleurs de la palette ou PNG/WebP en data URL de taille bornée. */
 export function isValidPreference(value: unknown): value is FolderIconPreference {
   if (!value || typeof value !== 'object') {
     return false
@@ -154,7 +158,7 @@ export function isValidPreference(value: unknown): value is FolderIconPreference
       color === undefined &&
       typeof image === 'string' &&
       image.length <= MAX_IMAGE_DATA_URL_LENGTH &&
-      PNG_DATA_URL.test(image)
+      IMAGE_DATA_URL.test(image)
     )
   }
   if (typeof icon !== 'string' || !ICON_NAMES.has(icon)) {

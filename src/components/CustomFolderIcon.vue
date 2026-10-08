@@ -4,7 +4,7 @@
     :src="icon.src"
     :alt="$gettext('Custom folder icon')"
     class="ext:object-contain"
-    :class="sizeClass"
+    :class="imageClass ?? sizeClass"
     data-test-id="folder-icons-custom-image"
   />
   <oc-icon
@@ -21,5 +21,10 @@
 <script setup lang="ts">
 import { ResolvedFolderIcon } from '../catalog'
 
-defineProps<{ icon: ResolvedFolderIcon; sizeClass: string }>()
+defineProps<{
+  icon: ResolvedFolderIcon
+  sizeClass: string
+  /** Taille d'une image importée, si elle doit différer de celle des icônes (ex. tuiles). */
+  imageClass?: string
+}>()
 </script>

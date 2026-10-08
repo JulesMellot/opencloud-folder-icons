@@ -26,6 +26,7 @@ describe('catalog', () => {
     const png = 'data:image/png;base64,iVBORw0KGgo='
     expect(isValidPreference({ image: png })).toBe(true)
     expect(resolveFolderIcon({ image: png })).toEqual({ kind: 'image', src: png })
+    expect(isValidPreference({ image: 'data:image/webp;base64,UklGRg==' })).toBe(true)
     expect(isValidPreference({ image: 'data:image/svg+xml;base64,PHN2Zz4=' })).toBe(false)
     expect(isValidPreference({ image: 'javascript:alert(1)' })).toBe(false)
     expect(isValidPreference({ image: 'https://example.org/x.png' })).toBe(false)

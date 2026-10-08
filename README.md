@@ -40,7 +40,7 @@ it into OpenCloud’s web apps directory. The archive contains a `folder-icons/`
 official OpenCloud extensions do:
 
 ```bash
-unzip folder-icons-0.2.0.zip -d "$OC_DATA_DIR/web/assets/apps/"
+unzip folder-icons-0.3.0.zip -d "$OC_DATA_DIR/web/assets/apps/"
 ```
 
 | Setup                                                                  | Web apps directory                                                                                          |
@@ -134,10 +134,16 @@ selections or public links.
 
 ### Uploaded images
 
-The image is decoded by the browser, resized to 64×64 (aspect ratio kept, transparent padding)
-and re-encoded as PNG before being stored. Only those pixels are kept, never the original file.
+The image is decoded by the browser, redrawn at up to **192 px** on its longest side (aspect
+ratio kept, no padding, never upscaled) and re-encoded as **WebP**, or PNG on browsers that cannot
+encode WebP, before being stored. If the result is too large for storage (32,000 characters), it is
+shrunk step by step (160, 128, 96, 64 px). Only those pixels are kept, never the original file.
 SVG, JPEG, oversized and unreadable files are rejected with a message. Colors do not apply to
 uploaded images; picking a catalog icon replaces the image.
+
+In the **Grid**, an uploaded image fills the tile preview like a thumbnail (without cropping) and
+follows the tile size slider; catalog icons keep the size of native folder icons. In lists, both
+use the icon column size.
 
 ## Personal and shared icons
 
@@ -159,9 +165,10 @@ removes your personal icon for that folder, so you see what everyone else sees.
 - Read from the normal folder listing: the extension asks OpenCloud Web to include this property
   in every `PROPFIND` (`registerExtraProp`), so there is **no extra request per folder**.
 - Versioned value without XML special characters: `1;icon;<name>;<color>` or
-  `1;image;<PNG base64>`. Resetting writes an empty value, which the server stops returning.
+  `1;image;<PNG base64>` or `1;webp;<WebP base64>`. Resetting writes an empty value, which the
+  server stops returning.
 - The value can be written by any member with edit rights, so it is **treated as untrusted**:
-  only catalog icons, palette colors and bounded PNG data are accepted, anything else is ignored
+  only catalog icons, palette colors and bounded PNG / WebP data are accepted, anything else is ignored
   and the default icon is shown.
 - Errors (no permission, locked folder, storage refusing the value) are shown in the dialog,
   which stays open.
@@ -183,7 +190,7 @@ browser’s `localStorage`, like OpenCloud Web already does for its own extensio
 - **If storage is unavailable or full** (strict private browsing, quota): default icons are
   shown, saving shows an error, file access is never affected.
 - **No sync** between browsers or devices. Clearing the site data removes the customizations.
-  An uploaded image takes about 0.5 to 20 KB of the browser’s ~5 MB quota for the site.
+  An uploaded image takes at most about 32 KB of the browser’s ~5 MB quota for the site.
 
 ### Rename and move
 
@@ -226,7 +233,7 @@ Object.keys(localStorage)
   photo previews are not shown in the icon column, including for files. The Grid has no such
   limitation.
 - Grid on narrow screens: a custom icon may be one size step larger than the native icons.
-- Uploaded images: PNG and ICO only, 64×64, not synced, duplicated if reused on several folders.
+- Uploaded images: PNG and ICO only, 192 px max., duplicated if reused on several folders.
   ICO decoding was verified in Chromium only.
 - Folders under “Shared with me”: the ID shown to the recipient may differ from the one seen
   inside the share, so an icon set in one place may not appear in the other.
@@ -294,23 +301,23 @@ Built like the official [web-extensions](https://github.com/opencloud-eu/web-ext
 | `src/shared.ts`                                             | shared icon: WebDAV property name, encoding and validation  |
 | `src/components/IconCatalog.vue`, `src/rovingFocus.ts`      | icon catalog with search, arrow-key navigation              |
 | `src/catalog.ts`                                            | catalog, palette, validation, appearance resolution         |
-| `src/image.ts`                                              | PNG/ICO import: checks, 64×64 resize, PNG re-encoding       |
+| `src/image.ts`                                              | PNG/ICO import: checks, resize (192 px max.), WebP/PNG      |
 | `src/storage.ts`                                            | storage interface + versioned `localStorage` implementation |
 | `src/composables/useFolderIconsStore.ts`                    | shared state, loaded once, O(1) lookup per row              |
 | `l10n/translations.json`                                    | French translations                                         |
 
 ## Testing status
 
-- `check:types`, `lint`, `format:check` and `build` pass; **65 unit tests** pass. They cover
+- `check:types`, `lint`, `format:check` and `build` pass; **70 unit tests** pass. They cover
   saving, resetting, persistence after reload, isolation between accounts and instances,
   rename / move, corrupted or unknown data, full or blocked storage, files and spaces never
   customized, badges and parent slots forwarded, keyboard navigation, search, image import,
   the replacement mode, and shared icons (encoding round trip, rejection of untrusted values,
   personal priority, `PROPPATCH` call and list update, permission errors). They use a simulated `localStorage` and stubbed OpenCloud components:
   **they are not a validation inside OpenCloud**.
-- Image processing was checked in a real browser (Chromium): a 400×100 PNG becomes a centered
-  64×64 PNG with transparent padding, a real `.ico` file is decoded, broken files and SVGs are
-  rejected.
+- Image processing was checked in a real browser (Chromium): a 400×100 PNG becomes a 192×48
+  WebP (no padding), a real 32×32 `.ico` file stays 32×32, a 400×400 random-noise image (worst
+  case for compression) fits the limit as a 192×192 WebP, broken files and SVGs are rejected.
 - On a real OpenCloud 8.1 instance: the context menu action, the dialog and saving were confirmed.
   Still to confirm on a real instance: the replacement mode in all views, **shared icons** (write,
   display for another member, image size on your filesystem, copy to another space), dark

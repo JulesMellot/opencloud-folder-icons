@@ -5,12 +5,16 @@
     <template v-for="name in passthroughSlots" #[name]="slotProps">
       <slot :name="name" v-bind="slotProps ?? {}" />
     </template>
+    <!-- Image importée : remplit l'aperçu comme une miniature (sans rognage). Icône du catalogue :
+         taille des icônes de dossier natives. Rien d'autre dans ce slot (un commentaire compterait
+         comme du contenu et masquerait l'aperçu natif). -->
     <template #image="{ resource }">
       <custom-folder-icon
         v-if="store.getIcon(resource)"
         :icon="store.getIcon(resource)"
         :size-class="iconSize"
-        class="ext:pt-1"
+        image-class="ext:size-full ext:p-3"
+        :class="{ 'ext:pt-1': store.getIcon(resource).kind === 'icon' }"
       />
       <slot v-else-if="$slots.image" name="image" :resource="resource" />
     </template>

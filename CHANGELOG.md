@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/JulesMellot/opencloud-folder-icons/releases/tag/v0.3.0) - 2026-10-08
+
+### ✨ Features
+
+- Uploaded images now fill the tile preview in the Grid (like thumbnails, without cropping) and follow the tile size slider
+- Uploaded images are kept at up to 192 px (instead of 64 px), with their aspect ratio and without padding, encoded as WebP (PNG fallback) and shrunk step by step if needed to fit the storage limit
+
 ## [0.2.0](https://github.com/JulesMellot/opencloud-folder-icons/releases/tag/v0.2.0) - 2026-10-07
 
 ### ✨ Features

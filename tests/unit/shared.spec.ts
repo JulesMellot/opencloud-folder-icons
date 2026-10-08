@@ -7,7 +7,8 @@ describe('shared icon value', () => {
     for (const pref of [
       { icon: 'music' },
       { icon: 'briefcase', color: 'blue' },
-      { image: PNG }
+      { image: PNG },
+      { image: 'data:image/webp;base64,UklGRg==' }
     ] as const) {
       expect(decodeSharedPreference(encodeSharedPreference(pref))).toEqual(pref)
     }
@@ -16,7 +17,8 @@ describe('shared icon value', () => {
   it('never contains XML special characters', () => {
     for (const value of [
       encodeSharedPreference({ icon: 'folder-2', color: 'red' }),
-      encodeSharedPreference({ image: PNG })
+      encodeSharedPreference({ image: PNG }),
+      encodeSharedPreference({ image: 'data:image/webp;base64,UklGRg==' })
     ]) {
       expect(value).toMatch(/^[A-Za-z0-9+/=;-]+$/)
     }
@@ -34,6 +36,8 @@ describe('shared icon value', () => {
       '1;image;AA"><script>alert(1)</script>',
       `1;image;${'A'.repeat(40_000)}`,
       '2;icon;music;',
+      '1;constructor;AAAA',
+      '1;__proto__;AAAA',
       'music',
       '{"icon":"music"}',
       42,
